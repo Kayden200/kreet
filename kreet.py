@@ -2,24 +2,52 @@ import requests
 import random
 import string
 import time
-import json
 from termcolor import colored
 
 # Generate a random password
 def generate_password():
     return ''.join(random.choices(string.ascii_letters + string.digits, k=12))
 
-# Fetch a proxy
+# Fetch a working proxy from multiple sources
 def get_proxy():
-    response = requests.get("https://api.proxyscrape.com/v2/?request=getproxies&protocol=http&timeout=10000&country=all")
-    proxies = response.text.splitlines()
-    return random.choice(proxies) if proxies else None
+    proxy_sources = [
+        "https://www.proxy-list.download/api/v1/get?type=http",
+        "https://raw.githubusercontent.com/TheSpeedX/PROXY-List/master/http.txt"
+    ]
+    
+    for url in proxy_sources:
+        try:
+            response = requests.get(url, timeout=5)
+            print(colored("[DEBUG] Proxy API Response:\n", "cyan"), response.text[:200])  # Show first 200 chars
+            
+            proxies = response.text.splitlines()
+            if proxies:
+                return random.choice(proxies)
+        except requests.exceptions.RequestException:
+            continue
+    return None
 
-# Get a temporary email
+# Get a temporary email from multiple sources
 def get_temp_email():
-    response = requests.get("https://www.1secmail.com/api/v1/?action=genRandomMailbox")
-    if response.status_code == 200:
-        return response.json()[0]
+    email_sources = [
+        "https://www.1secmail.net/api/v1/?action=genRandomMailbox",
+        "https://api.mail.tm/domains"
+    ]
+    
+    for url in email_sources:
+        try:
+            headers = {"User-Agent": "Mozilla/5.0"}
+            response = requests.get(url, headers=headers, timeout=5)
+            print(colored("[DEBUG] Email API Response:\n", "cyan"), response.text[:200])  # Show first 200 chars
+            
+            if response.status_code == 200:
+                if "1secmail" in url:
+                    return response.json()[0]
+                elif "mail.tm" in url:
+                    domains = response.json()
+                    return f"fbuser{random.randint(1000,9999)}@{domains[0]['domain']}"
+        except requests.exceptions.RequestException:
+            continue
     return None
 
 # Create a Facebook account
