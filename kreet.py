@@ -18,7 +18,7 @@ def get_proxy():
     for url in proxy_sources:
         try:
             response = requests.get(url, timeout=5)
-            print(colored("[DEBUG] Proxy API Response:\n", "cyan"), response.text[:200])  # Show first 200 chars
+            print(colored(f"[DEBUG] Proxy API Response ({url}):\n", "cyan"), response.text[:200])  # Show first 200 chars
             
             proxies = response.text.splitlines()
             if proxies:
@@ -38,16 +38,22 @@ def get_temp_email():
         try:
             headers = {"User-Agent": "Mozilla/5.0"}
             response = requests.get(url, headers=headers, timeout=5)
-            print(colored("[DEBUG] Email API Response:\n", "cyan"), response.text[:200])  # Show first 200 chars
+            print(colored(f"[DEBUG] Email API Response ({url}):\n", "cyan"), response.text[:200])  # Show first 200 chars
             
             if response.status_code == 200:
+                data = response.json()
+                
                 if "1secmail" in url:
-                    return response.json()[0]
-                elif "mail.tm" in url:
-                    domains = response.json()
-                    return f"fbuser{random.randint(1000,9999)}@{domains[0]['domain']}"
-        except requests.exceptions.RequestException:
+                    return data[0] if isinstance(data, list) else None
+                
+                elif "mail.tm" in url and "hydra:member" in data:
+                    domains = data["hydra:member"]
+                    if domains:  # Ensure list is not empty
+                        return f"fbuser{random.randint(1000,9999)}@{domains[0]['id']}"
+        except (requests.exceptions.RequestException, KeyError, IndexError) as e:
+            print(colored(f"[ERROR] Failed to fetch email from {url}. Retrying...", "red"))
             continue
+    
     return None
 
 # Create a Facebook account
