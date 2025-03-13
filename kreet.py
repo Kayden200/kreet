@@ -1,105 +1,126 @@
-import requests
 import random
-import string
+import requests
 import time
-from termcolor import colored
+import imaplib
+import email
 
-# Generate a random password
-def generate_password():
-    return ''.join(random.choices(string.ascii_letters + string.digits, k=12))
+# Set to store used numbers
+used_numbers = set()
+min_number = 500
 
-# Fetch a working proxy from multiple sources
-def get_proxy():
-    proxy_sources = [
-        "https://www.proxy-list.download/api/v1/get?type=http",
-        "https://raw.githubusercontent.com/TheSpeedX/PROXY-List/master/http.txt"
-    ]
-    
-    for url in proxy_sources:
-        try:
-            response = requests.get(url, timeout=5)
-            print(colored(f"[DEBUG] Proxy API Response ({url}):\n", "cyan"), response.text[:200])  # Show first 200 chars
-            
-            proxies = response.text.splitlines()
-            if proxies:
-                return random.choice(proxies)
-        except requests.exceptions.RequestException:
-            continue
-    return None
+# ZohoMail Credentials (Modify if needed)
+ZOHO_IMAP_SERVER = "imap.zoho.com"
+ZOHO_EMAIL = "ryliecohn@zohomail.com"
+ZOHO_PASSWORD = ""
 
-# Get a temporary email from multiple sources
-def get_temp_email():
-    email_sources = [
-        "https://www.1secmail.net/api/v1/?action=genRandomMailbox",
-        "https://api.mail.tm/domains"
-    ]
-    
-    for url in email_sources:
-        try:
-            headers = {"User-Agent": "Mozilla/5.0"}
-            response = requests.get(url, headers=headers, timeout=5)
-            print(colored(f"[DEBUG] Email API Response ({url}):\n", "cyan"), response.text[:200])  # Show first 200 chars
-            
-            if response.status_code == 200:
-                data = response.json()
-                
-                if "1secmail" in url:
-                    return data[0] if isinstance(data, list) else None
-                
-                elif "mail.tm" in url and "hydra:member" in data:
-                    domains = data["hydra:member"]
-                    if domains:  # Ensure list is not empty
-                        return f"fbuser{random.randint(1000,9999)}@{domains[0]['id']}"
-        except (requests.exceptions.RequestException, KeyError, IndexError) as e:
-            print(colored(f"[ERROR] Failed to fetch email from {url}. Retrying...", "red"))
-            continue
-    
-    return None
-
-# Create a Facebook account
-def create_fb_account():
-    proxy = get_proxy()
-    email = get_temp_email()
-    password = generate_password()
-
-    if not email or not proxy:
-        print(colored("[ERROR] Failed to fetch email or proxy. Retrying...", "red"))
-        return create_fb_account()
-
-    print(colored(f"[+] Using Proxy: {proxy}", "cyan"))
-    print(colored(f"[+] Email: {email}", "green"))
-    print(colored(f"[+] Password: {password}", "yellow"))
-
-    # Simulate account creation (Replace with actual Facebook signup request)
-    success = random.choice([True, False])  # Simulated success/failure
-
-    if success:
-        print(colored("[✓] Account Created Successfully!", "green"))
-        with open("accounts.txt", "a") as f:
-            f.write(f"{email} | {password}\n")
-    else:
-        print(colored("[X] Failed to Create Account. Retrying...", "red"))
-        return create_fb_account()
-
-# Main menu
-def menu():
+def generate_unique_number():
+    """Generates a unique number ensuring no duplicates."""
     while True:
-        print(colored("\nFB Auto Create - Developed by RYLE", "blue"))
-        print(colored("1. Create Facebook Account", "green"))
-        print(colored("2. View Created Accounts", "yellow"))
-        print(colored("3. Exit", "red"))
-        choice = input(colored("Select an option: ", "cyan"))
+        random_number = random.randint(min_number, 1000000 + min_number)
+        if random_number not in used_numbers:
+            used_numbers.add(random_number)
+            return random_number
 
-        if choice == "1":
-            create_fb_account()
-        elif choice == "2":
-            with open("accounts.txt", "r") as f:
-                print(f.read())
-        elif choice == "3":
-            print(colored("Exiting...", "red"))
-            break
+def generate_email():
+    """Generates a unique ZohoMail email address."""
+    email_counter = generate_unique_number()
+    email = f"ryliecohn+{email_counter}@zohomail.com"
+    return email
+
+def create_facebook_account(email, password):
+    """Simulates Facebook account creation (replace with actual implementation)."""
+    url = "https://m.facebook.com/reg"
+    data = {
+        "email": email,
+        "password": password,
+        "name": "John Doe",
+        "birthdate": "01/01/2000",
+        "gender": "male"
+    }
+    headers = {
+        "User-Agent": "Mozilla/5.0"
+    }
+
+    response = requests.post(url, data=data, headers=headers)
+    
+    # Simulated success check (modify based on actual response handling)
+    if response.status_code == 200 and "checkpoint" not in response.text:
+        return {"success": True, "fb_uid": "1234567890"}  # Replace with actual Facebook UID retrieval
+    return {"success": False}
+
+def check_zoho_for_otp(email_prefix):
+    """Checks ZohoMail inbox for OTP related to the email."""
+    try:
+        mail = imaplib.IMAP4_SSL(ZOHO_IMAP_SERVER)
+        mail.login(ZOHO_EMAIL, ZOHO_PASSWORD)
+        mail.select("inbox")
+
+        # Search for emails containing the email prefix
+        result, data = mail.search(None, 'ALL')
+        mail_ids = data[0].split()
+
+        for mail_id in reversed(mail_ids):  # Start from the latest email
+            result, msg_data = mail.fetch(mail_id, "(RFC822)")
+            for response_part in msg_data:
+                if isinstance(response_part, tuple):
+                    msg = email.message_from_bytes(response_part[1])
+                    subject = msg["subject"]
+
+                    # Modify this to match FB OTP email format
+                    if "Facebook Confirmation Code" in subject:
+                        body = msg.get_payload(decode=True).decode("utf-8")
+                        otp_code = extract_otp(body)  # Extract OTP from the email body
+                        if otp_code:
+                            return otp_code
+        return None
+    except Exception as e:
+        print("❌ Error checking ZohoMail:", e)
+        return None
+
+def extract_otp(text):
+    """Extracts OTP from email body."""
+    import re
+    match = re.search(r"\b\d{6}\b", text)  # Assuming OTP is a 6-digit code
+    return match.group(0) if match else None
+
+def save_email(email):
+    """Saves the successfully used email to emails.txt."""
+    with open("emails.txt", "a") as file:
+        file.write(email + "\n")
+
+def main():
+    """Main function to generate and register Facebook accounts."""
+    num_accounts = int(input("Enter the number of accounts to create: "))
+
+    for _ in range(num_accounts):
+        email = generate_email()
+        password = "Random@1234"  # You can generate a random password instead
+
+        print(f"🚀 Creating account with {email}...")
+        fb_response = create_facebook_account(email, password)
+
+        if fb_response["success"]:
+            print(f"✅ Account created successfully with {email}")
+
+            # Wait a few seconds before checking for OTP
+            time.sleep(10)
+
+            email_prefix = email.split("@")[0]  # Extract prefix for searching
+            otp = check_zoho_for_otp(email_prefix)
+
+            if otp:
+                print("\n📩 **Facebook Account Details**")
+                print(f"📧 Email: {email}")
+                print(f"🔑 Password: {password}")
+                print(f"🆔 Facebook UID: {fb_response['fb_uid']}")
+                print(f"🔢 OTP: {otp}\n")
+
+                save_email(email)  # Save only if OTP is found
+            else:
+                print(f"⚠️ No OTP found for {email}. Account may not be fully registered.")
         else:
-            print(colored("Invalid choice. Try again.", "red"))
+            print(f"❌ Failed to create account with {email}, retrying...")
+            time.sleep(2)  # Optional delay before retrying
 
 if __name__ == "__main__":
-    menu()
+    main()
