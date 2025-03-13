@@ -11,7 +11,7 @@ min_number = 500
 # ZohoMail Credentials (Modify if needed)
 ZOHO_IMAP_SERVER = "imap.zoho.com"
 ZOHO_EMAIL = "ryliecohn@zohomail.com"
-ZOHO_PASSWORD = ""
+ZOHO_PASSWORD = "kirbsmaot321"
 
 def generate_unique_number():
     """Generates a unique number ensuring no duplicates."""
